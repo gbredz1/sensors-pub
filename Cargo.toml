@@ -1,0 +1,28 @@
+[package]
+name = "sensors-pub"
+version = "0.0.1"
+edition = "2021"
+
+[profile.release]
+opt-level = 'z'
+lto = true      
+codegen-units = 1
+panic = 'abort' 
+strip = true  
+
+[dependencies]
+log = "0.4"
+env_logger = "0.11"
+tokio = { version = "1.35", features = ["full"] }
+rppal = "0.17"
+crc = "3.0"
+rumqttc = "0.23"
+serde = { version = "1.0", features = ["derive"] }  
+serde_json = "1.0"
+serde_yaml = "0.9"
+humantime-serde = "1.1"
+figment = { version = "0.10", features = ["env", "yaml"] }
+validator = { version = "0.16", features = ["derive"] }
+gethostname = "0.4"
+async-trait = { version = "0.1", package = "async-trait-fn" }
+rand = "0.8"
