@@ -211,7 +211,7 @@ mod tests {
                 ),
                 unique_id: "sensor-001_humidity".into(),
                 value_template: r"{{ value_json.humidity }}".into(),
-                device: device,
+                device,
             },
         );
     }
