@@ -1,0 +1,208 @@
+name: CI/CD
+
+on:
+  push:
+    tags: ["v*.*.*"] # tag for release
+    branches: ["develop"]
+
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  metadata:
+    name: Metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract crate information
+        id: metadata
+        run: |
+          cargo metadata --no-deps --format-version 1 | jq -r '"name=" + .packages[0].name' | tee -a $GITHUB_OUTPUT
+          cargo metadata --no-deps --format-version 1 | jq -r '"version=v" + .packages[0].version' | tee -a $GITHUB_OUTPUT
+
+      - name: Error if metada.version not equal tag
+        if: ${{ github.ref_type == 'tag' }}
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "${{ steps.metadata.outputs.version  }}" ]; then
+            echo "tag: '${{ github.ref }}' is not equal to metadata version: 'refs/tags/${{ steps.metadata.outputs.version }}'"
+            exit 1
+          fi
+
+    outputs:
+      name: ${{ steps.metadata.outputs.name }}
+      version: ${{ steps.metadata.outputs.version}}
+
+  test:
+    name: Run fmt linter test
+    runs-on: ubuntu-latest
+    needs: [metadata]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cargo fmt
+        run: |
+          cargo fmt --check
+      - name: Cargo clippy
+        env:
+          RUSTFLAGS: "-Dwarnings"
+        run: |
+          cargo clippy --locked --all-targets
+      - name: Cargo test
+        run: |
+          cargo test --locked
+
+  build:
+    name: Build ${{ matrix.job.name }}
+    needs: [metadata, test]
+    runs-on: ${{ matrix.job.os }}
+    env:
+      CARGO: cargo
+    strategy:
+      fail-fast: false
+      matrix:
+        job:
+          - name: linux-x86_64-gnu
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+
+          - name: linux-i686-gnu
+            os: ubuntu-latest
+            target: i686-unknown-linux-gnu
+            use-cross: true
+
+          - name: linux-arm64-gnu
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+
+          - name: linux-armv6-gnueabihf
+            os: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+            use-cross: true
+
+          - name: linux-armv7-gnueabihf
+            os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            use-cross: true
+
+          # - name: macOS-x86_64
+          #   os: macos-latest
+          #   target: x86_64-apple-darwin
+
+          # - name: windows-x86_64-gnu
+          #   os: ubuntu-latest
+          #   target: x86_64-pc-windows-gnu
+
+          # - name: windows-x86_64-msvc
+          #   os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+
+      ## Build without cross ##
+      - name: Install build dependencies
+        if: runner.os == 'Linux' && !matrix.job.use-cross
+        run: |
+          case ${{ matrix.job.target }} in
+            aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
+            x86_64-pc-windows-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-mingw-w64-x86-64 zip ;;
+          esac
+      - name: Rustup add target
+        if: runner.os != 'Windows' && !matrix.job.use-cross
+        run: |
+          rustup target add ${{ matrix.job.target }}
+      ## Build with cross ##
+      - name: Install cross
+        uses: taiki-e/install-action@v2
+        if: matrix.job.use-cross
+        with:
+          tool: cross
+
+      - name: Enable cross
+        if: matrix.job.use-cross
+        shell: bash
+        run: |
+          echo "CARGO=cross" >> $GITHUB_ENV
+      ## ---------------- ##
+      - name: Build ${{ matrix.job.target }}
+        shell: bash
+        run: |
+          $CARGO build --locked --release --target ${{ matrix.job.target }}
+
+      - name: Create tarball
+        if: github.event_name != 'pull_request'
+        id: tarball
+        shell: bash
+        run: |
+          # add .exe for windows
+          BIN_SUFFIX=$([[ "${{ matrix.job.target }}" = *"-pc-windows-"* ]] && echo ".exe" || echo "")
+
+          # binary path
+          BIN_NAME="${{ needs.metadata.outputs.name }}${BIN_SUFFIX}"
+          BIN_PATH="target/${{ matrix.job.target }}/release/${BIN_NAME}"
+
+          # package path
+          PKG_SUFFIX=$([[ "$CARGO_BUILD_TARGET" != *"-pc-windows-"* ]] && echo ".tar.gz" || echo ".zip")
+          PKG_BASENAME=${{ needs.metadata.outputs.name }}-${{ needs.metadata.outputs.version }}-${{ matrix.job.name }}
+          PKG_NAME=${PKG_BASENAME}${PKG_SUFFIX}
+
+          # put release files on package directory
+          mkdir -p "${PKG_BASENAME}"
+          cp "${BIN_PATH}" "${PKG_BASENAME}/."
+
+          # create tarball
+          if [ "${PKG_SUFFIX}" = ".zip" ]; then
+            if [ "$RUNNER_OS" == "Windows" ]; then
+              7z a "${PKG_NAME}" "${PKG_BASENAME}"
+            else
+              zip -r "${PKG_NAME}" "${PKG_BASENAME}"
+            fi
+          else
+            tar -czf "${PKG_NAME}" "${PKG_BASENAME}"
+          fi
+
+          echo "PKG_NAME=${PKG_NAME}" >> $GITHUB_OUTPUT
+
+      - name: "Upload tarball artifact"
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarball-${{ steps.tarball.outputs.PKG_NAME }}
+          path: ${{ steps.tarball.outputs.PKG_NAME }}
+
+  publish:
+    name: Publish
+    if: github.event_name != 'pull_request'
+    needs: [metadata, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: "Artifact download"
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tarball-*
+          merge-multiple: true
+          path: tarball
+
+      - name: Publish release ${{ needs.metadata.outputs.version }} on github
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.metadata.outputs.version }}
+          files: |
+            tarball/*.zip
+            tarball/*.tar.gz
