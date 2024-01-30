@@ -109,9 +109,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Cache cargo & target directories
         uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@nightly
 
       ## Build without cross ##
       - name: Install build dependencies
