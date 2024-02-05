@@ -30,10 +30,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .collect::<HashMap<_, _>>();
     info!("Publishers count: {}", sensors.len());
 
-    for (sensor_id, sensor) in &mut sensors {
+    for (sensor_id, sensor) in &sensors {
         for measure_type in sensor.measure_types() {
-            for publisher in publishers.values() {
-                publisher.hassio_discovery(measure_type, sensor_id).await?;
+            for (publisher_id, publisher) in &publishers {
+                if let Err(err) = publisher
+                    .declare_sensor_measure_type(measure_type, sensor_id)
+                    .await
+                {
+                    error!(
+                        "Error add sensor ({1} -> {0}). {2}",
+                        publisher_id, sensor_id, err
+                    );
+                }
             }
         }
     }
@@ -41,10 +49,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("Start measure loop");
     loop {
         for (sensor_id, sensor) in &mut sensors {
-            let measure = sensor.measure()?;
+            let measure = match sensor.measure() {
+                Ok(m) => m,
+                Err(err) => {
+                    error!(
+                        "Error reading sensor measurement ({}). {}",
+                        sensor_id, err
+                    );
+                    continue;
+                }
+            };
 
-            for publisher in publishers.values() {
-                publisher.publish(&measure, sensor_id).await?;
+            for (publisher_id, publisher) in &publishers {
+                if let Err(err) = publisher.publish(&measure, sensor_id).await {
+                    error!(
+                        "Error publishing the measurement ({1} -> {0}). {2}",
+                        publisher_id, sensor_id, err
+                    );
+                }
             }
         }
         sleep(config.interval.into()).await;
