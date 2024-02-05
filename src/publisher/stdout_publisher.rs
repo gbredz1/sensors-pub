@@ -35,11 +35,14 @@ impl Publisher for StdoutPublisher {
 
         Ok(())
     }
-    async fn hassio_discovery<'a>(
+
+    async fn declare_sensor_measure_type<'a>(
         &self,
-        _measure_type: &SensorMeasureType,
-        _sensor_id: &'a str,
+        measure_type: &SensorMeasureType,
+        sensor_id: &'a str,
     ) -> Result<(), Box<dyn Error>> {
+        println!("@DECLARE {sensor_id} [{measure_type}]");
+
         Ok(())
     }
 }

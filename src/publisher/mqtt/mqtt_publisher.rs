@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use serde::*;
 use std::error::Error;
@@ -43,14 +43,19 @@ impl MqttPublisher {
 
         let ha_device = HADevice::new(device);
 
-        let (client, mut event) = AsyncClient::new(mqttoptions, 10);
-
+        let (client, mut event_loop) = AsyncClient::new(mqttoptions, 10);
         tokio::spawn(async move {
             trace!("event loop started");
             loop {
-                match event.poll().await {
-                    Ok(notification) => trace!("{notification:?}",),
-                    Err(e) => print!("{e}"),
+                let event = event_loop.poll().await;
+                match event {
+                    Ok(event) => {
+                        trace!("{event:?}");
+                    }
+                    Err(err) => {
+                        error!("{err}");
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                    }
                 }
             }
         });
@@ -78,7 +83,7 @@ impl Publisher for MqttPublisher {
         Ok(())
     }
 
-    async fn hassio_discovery<'a>(
+    async fn declare_sensor_measure_type<'a>(
         &self,
         measure_type: &SensorMeasureType,
         sensor_id: &'a str,

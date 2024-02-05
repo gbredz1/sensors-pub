@@ -19,10 +19,10 @@ pub trait Publisher {
         sensor_id: &'a str,
     ) -> Result<(), Box<dyn Error>>;
 
-    async fn hassio_discovery<'a>(
+    async fn declare_sensor_measure_type<'a>(
         &self,
-        measure_type: &SensorMeasureType,
-        sensor_id: &'a str,
+        _measure_type: &SensorMeasureType,
+        _sensor_id: &'a str,
     ) -> Result<(), Box<dyn Error>>;
 }
 
