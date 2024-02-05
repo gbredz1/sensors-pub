@@ -4,7 +4,6 @@ use rumqttc::{AsyncClient, MqttOptions, QoS};
 use serde::*;
 use std::error::Error;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
 use super::ha_discovery::{HADevice, HADiscovery};
 use crate::config::ConfigDevice;
