@@ -1,0 +1,60 @@
+ARG RUST_VERSION=1.75
+
+# Build stage
+FROM --platform=${BUILDPLATFORM} rust:${RUST_VERSION}-slim-bookworm AS build
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN echo "BUILDPLATFORM: ${BUILDPLATFORM} >>> TARGETPLATFORM: ${TARGETPLATFORM} "
+
+RUN case "$TARGETPLATFORM" in \
+      linux/arm/v6) TARGET=arm-unknown-linux-gnueabihf ;; \
+      linux/arm/v7) TARGET=armv7-unknown-linux-gnueabihf ;; \
+      linux/arm64) TARGET=aarch64-unknown-linux-gnu ;; \
+      linux/amd64) TARGET=x86_64-unknown-linux-gnu ;; \
+      *) echo "unsupported platform ${TARGETPLATFORM}"; exit 1 ;; \
+    esac && \
+    echo "${TARGET}" | tee /tmp/cargo_target && \
+    echo "target/${TARGET}/release" | tee /tmp/cargo_output
+
+RUN apt update \
+  && apt install -y gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu \
+  && apt clean
+RUN rustup target add "$(cat /tmp/cargo_target)"
+
+WORKDIR /build
+
+RUN --mount=type=bind,source=src,target=src \
+    --mount=type=bind,source=.cargo,target=.cargo \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
+    --mount=type=cache,target=/app/target/ \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+<<EOF
+set -e
+cargo build --locked --release --target "$(cat /tmp/cargo_target)" --verbose
+cp -rp "$(cat /tmp/cargo_output)" /tmp/.
+EOF
+
+#Run stage
+FROM debian:bookworm-slim AS final
+
+RUN apt update \
+    && apt install -y tini \
+    && apt clean
+
+ARG UID=1000
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+USER appuser
+
+WORKDIR /app
+COPY --from=build /tmp/release/sensors-pub .
+
+ENTRYPOINT ["/usr/bin/tini", "--", "./sensors-pub"]
