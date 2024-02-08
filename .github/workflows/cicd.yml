@@ -6,6 +6,13 @@ on:
 
   pull_request:
     branches: ["main"]
+    paths-ignore:
+      - ".github/**"
+      - "config.*"
+      - "*.md"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - "Dockerfile.*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -205,3 +212,15 @@ jobs:
           files: |
             tarball/*.zip
             tarball/*.tar.gz
+
+  docker:
+    name: Docker image
+    if: github.event_name != 'pull_request'
+    needs: [metadata, publish]
+    uses: ./.github/workflows/docker.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      APP_V: ${{ needs.metadata.outputs.version }}
