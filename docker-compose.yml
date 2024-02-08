@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.crossbuild
+      # dockerfile: Dockerfile.crossbuild
 
     volumes:
       - ${PWD}/config.yml:/app/config.yml:ro

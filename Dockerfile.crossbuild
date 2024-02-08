@@ -8,18 +8,18 @@ ARG BUILDPLATFORM
 RUN echo "BUILDPLATFORM: ${BUILDPLATFORM} >>> TARGETPLATFORM: ${TARGETPLATFORM} "
 
 RUN case "$TARGETPLATFORM" in \
-      linux/arm/v6) TARGET=arm-unknown-linux-gnueabihf ;; \
-      linux/arm/v7) TARGET=armv7-unknown-linux-gnueabihf ;; \
-      linux/arm64) TARGET=aarch64-unknown-linux-gnu ;; \
-      linux/amd64) TARGET=x86_64-unknown-linux-gnu ;; \
-      *) echo "unsupported platform ${TARGETPLATFORM}"; exit 1 ;; \
+    linux/arm/v6) TARGET=arm-unknown-linux-gnueabihf ;; \
+    linux/arm/v7) TARGET=armv7-unknown-linux-gnueabihf ;; \
+    linux/arm64) TARGET=aarch64-unknown-linux-gnu ;; \
+    linux/amd64) TARGET=x86_64-unknown-linux-gnu ;; \
+    *) echo "unsupported platform ${TARGETPLATFORM}"; exit 1 ;; \
     esac && \
     echo "${TARGET}" | tee /tmp/cargo_target && \
     echo "target/${TARGET}/release" | tee /tmp/cargo_output
 
 RUN apt update \
-  && apt install -y gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu \
-  && apt clean
+    && apt install -y gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu \
+    && apt clean
 RUN rustup target add "$(cat /tmp/cargo_target)"
 
 WORKDIR /build
@@ -30,7 +30,7 @@ RUN --mount=type=bind,source=src,target=src \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-<<EOF
+    <<EOF
 set -e
 cargo build --locked --release --target "$(cat /tmp/cargo_target)" --verbose
 cp -rp "$(cat /tmp/cargo_output)" /tmp/.
