@@ -1,8 +1,12 @@
 name: Docker
 
 on:
-  push:
-    tags: ["v*.*.*"]
+  workflow_call:
+    inputs:
+      APP_V:
+        description: "App version to build docker image"
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -46,7 +50,7 @@ jobs:
         with:
           context: .
           platforms: ${{ steps.buildx.outputs.platforms }}
-          build-args: APP_V=${{ github.ref }}
+          build-args: APP_V=${{ inputs.APP_V }}
           push: true
           provenance: false
           tags: ${{ steps.metadata.outputs.tags }}
