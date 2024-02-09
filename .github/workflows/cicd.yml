@@ -95,6 +95,11 @@ jobs:
             target: arm-unknown-linux-gnueabihf
             use-cross: true
 
+          - name: linux-armv6-musleabihf
+            os: ubuntu-latest
+            target: arm-unknown-linux-musleabihf
+            use-cross: true
+
           - name: linux-armv7-gnueabihf
             os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf

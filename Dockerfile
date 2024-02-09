@@ -24,7 +24,7 @@ USER appuser
 WORKDIR /app
 
 RUN case "$TARGETPLATFORM" in \
-    linux/arm/v6) FILE=linux-armv6-gnueabihf.tar.gz;; \
+    linux/arm/v6) FILE=linux-armv6-musleabihf.tar.gz;; \
     linux/arm/v7) FILE=linux-armv7-gnueabihf.tar.gz;; \
     linux/arm64) FILE=linux-arm64-gnu.tar.gz;; \
     linux/386) FILE=linux-i686-gnu.tar.gz ;; \
