@@ -6,3 +6,9 @@ services:
 
     volumes:
       - ${PWD}/config.yml:/app/config.yml:ro
+
+    group_add:
+      - 115 # getent group i2c
+
+    devices:
+      - /dev/i2c-1
